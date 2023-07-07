@@ -45,7 +45,7 @@
             android:src="@drawable/ic_more" />
 
         <TextView
-            android:id="@+id/button2"
+            android:id="@+id/buttonAdd"
             android:layout_width="75dp"
             android:layout_height="38dp"
             android:layout_gravity="end"

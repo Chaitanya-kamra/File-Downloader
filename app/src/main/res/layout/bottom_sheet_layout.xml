@@ -338,7 +338,7 @@
                 android:layout_weight="1"
                 android:gravity="end"
                 android:text="100.5 MB"
-                android:textSize="14sp" />
+                android:textSize="12sp" />
 
         </LinearLayout>
 
