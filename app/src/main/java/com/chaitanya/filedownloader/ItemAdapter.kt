@@ -5,7 +5,7 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.chaitanya.filedownloader.databinding.ItemDownloadBinding
 
-class ItemAdapter( private val items: ArrayList<String>,
+class ItemAdapter( private val items: ArrayList<DownloadItem>,
                    private val updateListener: (id: Int) -> Unit):
     RecyclerView.Adapter<ItemAdapter.ViewHolder>() {
     class ViewHolder(binding: ItemDownloadBinding) : RecyclerView.ViewHolder(binding.root) {
