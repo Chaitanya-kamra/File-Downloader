@@ -1,5 +1,6 @@
 package com.chaitanya.filedownloader
 
+import android.annotation.SuppressLint
 import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
@@ -14,9 +15,15 @@ import android.widget.Toast
 import androidx.annotation.RequiresApi
 import com.chaitanya.filedownloader.databinding.ActivityMainBinding
 import com.google.android.material.bottomsheet.BottomSheetDialog
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import java.net.URL
 
 class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener {
     private lateinit var binding: ActivityMainBinding
+    private lateinit var bottomSheetDialog : BottomSheetDialog
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -27,7 +34,7 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener {
         binding.menuMore.setOnClickListener { view ->
             showMenu(view)
         }
-        val bottomSheetDialog = BottomSheetDialog(this)
+        bottomSheetDialog = BottomSheetDialog(this)
         val bottomSheetView = layoutInflater.inflate(R.layout.bottom_sheet_layout, null)
         bottomSheetDialog.setContentView(bottomSheetView)
 
@@ -49,20 +56,41 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener {
             }
         })
 
-        val backButton = bottomSheetView.findViewById<Button>(R.id.backButton)
-        backButton.setOnClickListener {
-            bottomSheetDialog.dismiss()
-        }
-
-        val updateButton = bottomSheetView.findViewById<Button>(R.id.updateButton)
-        updateButton.setOnClickListener {
-            val parallelDownloadCount = slider.progress
-            // Perform the necessary action to update the parallel download count
-            // You can add your implementation logic here
-        }
+//        val backButton = bottomSheetView.findViewById<Button>(R.id.backButton)
+//        backButton.setOnClickListener {
+//            bottomSheetDialog.dismiss()
+//        }
+//        val addButton = bottomSheetView.findViewById<Button>(R.id.addButton)
+//        addButton.setOnClickListener{
+//            fetchUrlDetails("http://167.99.95.99/a/10.bin")
+//        }
+//
+//        val updateButton = bottomSheetView.findViewById<Button>(R.id.updateButton)
+//        updateButton.setOnClickListener {
+//            val parallelDownloadCount = slider.progress
+//            // Perform the necessary action to update the parallel download count
+//            // You can add your implementation logic here
+//        }
         binding.button2.setOnClickListener {
             bottomSheetDialog.show()
-            Toast.makeText(this,"fea",Toast.LENGTH_LONG).show()
+
+        }
+    }
+
+    fun fetchUrlDetails(urlString: String) {
+        GlobalScope.launch(Dispatchers.IO) {
+            val url = URL(urlString)
+            val connection = url.openConnection()
+            connection.connect()
+
+            val fileSize = connection.contentLength
+            val contentType = connection.contentType
+            val fileName = url.path.substring(url.path.lastIndexOf('/') + 1)
+
+            // Print or use the fetched details as per your requirements
+            println("File Name: $fileName")
+            println("File Size: $fileSize bytes")
+            println("File Type: $contentType")
         }
     }
 
