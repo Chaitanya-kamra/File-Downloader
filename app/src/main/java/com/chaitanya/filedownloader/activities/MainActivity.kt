@@ -38,17 +38,20 @@ import okhttp3.Response
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.lang.Exception
 import java.net.URL
 
-class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener, WifiReceiver.WifiConnectivityListener {
+class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
+    WifiReceiver.WifiConnectivityListener {
     private lateinit var binding: ActivityMainBinding
-    private lateinit var bottomSheetDialog : BottomSheetDialog
+    private lateinit var bottomSheetDialog: BottomSheetDialog
     private lateinit var bottomSheetView: View
     private lateinit var wifiReceiver: WifiReceiver
 
-    private var maxParallelDownload : Int = 1
+    private var maxParallelDownload: Int = 1
 
     private var selectedFolder: Uri? = null
+    private lateinit var enteredLink: String
 
     // ActivityResultLauncher for folder selection
     private val folderSelectionLauncher =
@@ -64,7 +67,6 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener, Wif
 
             }
         }
-
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -88,75 +90,109 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener, Wif
 
         bottomSheetView.findViewById<Button>(R.id.addDownloadButton).setOnClickListener {
             val intent = Intent(this, DownloadService::class.java)
-            intent.putExtra(DownloadService.EXTRA_IMAGE_URL, "http://167.99.95.99/a/10.bin")
+
+            intent.putExtra(DownloadService.EXTRA_IMAGE_URL, enteredLink)
             ContextCompat.startForegroundService(this, intent)
-//            downloadVideo("http://167.99.95.99/c/1.bin")
         }
 
 
-        val slider = bottomSheetView.findViewById<SeekBar>(R.id.slider)
         val sliderValue = bottomSheetView.findViewById<TextView>(R.id.sliderValue)
-        slider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                sliderValue.text = progress.toString()
-            }
+        bottomSheetView.findViewById<SeekBar>(R.id.slider)
+            .setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(
+                    seekBar: SeekBar?,
+                    progress: Int,
+                    fromUser: Boolean
+                ) {
+                    sliderValue.text = progress.toString()
+                }
 
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {
-                // Not needed for this implementation
-            }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {
+                    // Not needed for this implementation
+                }
 
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                // Not needed for this implementation
-            }
-        })
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                    // Not needed for this implementation
+                }
+            })
 
-//        val backButton = bottomSheetView.findViewById<Button>(R.id.backButton)
-//        backButton.setOnClickListener {
-//            bottomSheetDialog.dismiss()
-//        }
-        val addButton = bottomSheetView.findViewById<Button>(R.id.addLinkButton)
-        addButton.setOnClickListener{
-            fetchUrlDetails("https://ia802607.us.archive.org/27/items/the-kerala-story_202305/BOY%20AND%20THE%20KING%20-%20Abdallah%20Al%20Faisal.jpg")
+
+
+        bottomSheetView.findViewById<Button>(R.id.addLinkButton).setOnClickListener {
+            if (bottomSheetView.findViewById<EditText>(R.id.et_link).text.isNullOrEmpty()) {
+                Toast.makeText(this@MainActivity, "Enter Link", Toast.LENGTH_LONG).show()
+            } else {
+                enteredLink = bottomSheetView.findViewById<EditText>(R.id.et_link).text.toString()
+//                fetchUrlDetails("https://ia802607.us.archive.org/27/items/the-kerala-story_202305/BOY%20AND%20THE%20KING%20-%20Abdallah%20Al%20Faisal.jpg")
+                fetchUrlDetails(enteredLink)
+            }
         }
-
+        bottomSheetView.findViewById<Button>(R.id.errorBackButton).setOnClickListener {
+            linkUi()
+        }
+        bottomSheetView.findViewById<Button>(R.id.settingUpdateButton).setOnClickListener {
+            maxParallelDownload = bottomSheetView.findViewById<SeekBar>(R.id.slider).progress
+            bottomSheetDialog.dismiss()
+        }
+        bottomSheetView.findViewById<Button>(R.id.closeSettingButton).setOnClickListener {
+            bottomSheetDialog.dismiss()
+        }
+        bottomSheetView.findViewById<Button>(R.id.cancelLinkButton).setOnClickListener {
+            bottomSheetDialog.dismiss()
+        }
+        bottomSheetView.findViewById<Button>(R.id.cancelDownloadButton).setOnClickListener {
+            bottomSheetDialog.dismiss()
+        }
+        bottomSheetView.findViewById<Button>(R.id.doneSuccessfulButton).setOnClickListener {
+            bottomSheetDialog.dismiss()
+        }
+        bottomSheetView.findViewById<Button>(R.id.errorCloseButton).setOnClickListener {
+            bottomSheetDialog.dismiss()
+        }
 
         binding.buttonAdd.setOnClickListener {
             linkUi()
             bottomSheetDialog.show()
-
         }
     }
 
     private fun fetchUrlDetails(urlString: String) {
-        runOnUiThread{
+        runOnUiThread {
             loadingUi()
         }
         GlobalScope.launch(Dispatchers.IO) {
-            val url = URL(urlString)
-            val connection = url.openConnection()
-            connection.connect()
+            try {
+                val url = URL(urlString)
+                val connection = url.openConnection()
+                connection.connect()
 
-
-            val fileSize = connection.contentLength
-            val fileName = url.path.substring(url.path.lastIndexOf('/') + 1)
-            val name = fileName.substringBeforeLast(".")
-            val extension = fileName.substringAfterLast(".")
-            Log.e("check",fileSize.toString() )
-            runOnUiThread{
-                downloadUi()
-                val editName = bottomSheetView.findViewById<EditText>(R.id.etFileName)
-                val tvFileSize = bottomSheetView.findViewById<TextView>(R.id.tvSize)
-                val tvExtension = bottomSheetView.findViewById<TextView>(R.id.tvExtension)
-                tvExtension.text = extension
-                tvFileSize.text = if (fileSize < 0){
-                    "Unknown"
-                }else {
-                    formatDataSize(fileSize)
+                val fileSize = connection.contentLength
+                val fileName = url.path.substring(url.path.lastIndexOf('/') + 1)
+                val name = fileName.substringBeforeLast(".")
+                val extension = fileName.substringAfterLast(".")
+                Log.e("check", fileSize.toString())
+                runOnUiThread {
+                    downloadUi()
+                    val editName = bottomSheetView.findViewById<EditText>(R.id.etFileName)
+                    val tvFileSize = bottomSheetView.findViewById<TextView>(R.id.tvSize)
+                    val tvExtension = bottomSheetView.findViewById<TextView>(R.id.tvExtension)
+                    tvExtension.text = extension
+                    tvFileSize.text = if (fileSize < 0) {
+                        "Unknown"
+                    } else {
+                        formatDataSize(fileSize)
+                    }
+                    editName.setText(name)
                 }
-                editName.setText(name)
+            } catch (e: Exception) {
+                runOnUiThread {
+                    Toast.makeText(this@MainActivity, "Enter Proper Link", Toast.LENGTH_LONG).show()
+                    linkUi()
+                }
             }
         }
     }
+
     private fun formatDataSize(size: Int): String {
         val units = arrayOf("B", "KB", "MB", "GB", "TB")
         var fileSize = size.toDouble()
@@ -174,6 +210,7 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener, Wif
         intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
         folderSelectionLauncher.launch(intent)
     }
+
     @RequiresApi(Build.VERSION_CODES.Q)
     private fun showMenu(view: View) {
         PopupMenu(this, view).apply {
@@ -183,16 +220,22 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener, Wif
             show()
         }
     }
+
     override fun onMenuItemClick(item: MenuItem?): Boolean {
         return when (item!!.itemId) {
             R.id.action_settings -> {
+                bottomSheetView.findViewById<TextView>(R.id.sliderValue).text =
+                    maxParallelDownload.toString()
+                bottomSheetView.findViewById<SeekBar>(R.id.slider).progress = maxParallelDownload
                 settingUi()
                 bottomSheetDialog.show()
                 true
             }
+
             else -> false
         }
     }
+
     private fun downloadVideo(mediaStream: String) {
         mediaStream.let {
             val client = OkHttpClient()
@@ -261,8 +304,10 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener, Wif
             })
         }
     }
+
     private fun isInternetAvailable(): Boolean {
-        val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val connectivityManager =
+            getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             val networkCapabilities = connectivityManager.activeNetwork ?: return false
             val activeNetwork =
@@ -273,6 +318,7 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener, Wif
             return networkInfo?.isConnectedOrConnecting == true
         }
     }
+
     override fun onResume() {
         super.onResume()
         registerWifiReceiver()
@@ -293,10 +339,11 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener, Wif
     }
 
     override fun onWifiConnected() {
-        Toast.makeText(this@MainActivity,"fsfs",Toast.LENGTH_LONG).show()
+        Toast.makeText(this@MainActivity, "fsfs", Toast.LENGTH_LONG).show()
         // Wi-Fi connected, perform the desired functionality here
     }
-    private fun settingUi(){
+
+    private fun settingUi() {
         val settingLayout = bottomSheetView.findViewById<View>(R.id.lnlSetting)
         val loadingLayout = bottomSheetView.findViewById<View>(R.id.lnlGrabbing)
         val linkLayout = bottomSheetView.findViewById<View>(R.id.lnlEnterLink)
@@ -310,7 +357,8 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener, Wif
         successFulLLayout.visibility = View.GONE
         unSuccessLayout.visibility = View.GONE
     }
-    private fun loadingUi(){
+
+    private fun loadingUi() {
         val settingLayout = bottomSheetView.findViewById<View>(R.id.lnlSetting)
         val loadingLayout = bottomSheetView.findViewById<View>(R.id.lnlGrabbing)
         val linkLayout = bottomSheetView.findViewById<View>(R.id.lnlEnterLink)
@@ -324,7 +372,8 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener, Wif
         successFulLLayout.visibility = View.GONE
         unSuccessLayout.visibility = View.GONE
     }
-    private fun linkUi(){
+
+    private fun linkUi() {
         val settingLayout = bottomSheetView.findViewById<View>(R.id.lnlSetting)
         val loadingLayout = bottomSheetView.findViewById<View>(R.id.lnlGrabbing)
         val linkLayout = bottomSheetView.findViewById<View>(R.id.lnlEnterLink)
@@ -338,7 +387,8 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener, Wif
         successFulLLayout.visibility = View.GONE
         unSuccessLayout.visibility = View.GONE
     }
-    private fun downloadUi(){
+
+    private fun downloadUi() {
         val settingLayout = bottomSheetView.findViewById<View>(R.id.lnlSetting)
         val loadingLayout = bottomSheetView.findViewById<View>(R.id.lnlGrabbing)
         val linkLayout = bottomSheetView.findViewById<View>(R.id.lnlEnterLink)
@@ -352,7 +402,8 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener, Wif
         successFulLLayout.visibility = View.GONE
         unSuccessLayout.visibility = View.GONE
     }
-    private fun successUi(){
+
+    private fun successUi() {
         val settingLayout = bottomSheetView.findViewById<View>(R.id.lnlSetting)
         val loadingLayout = bottomSheetView.findViewById<View>(R.id.lnlGrabbing)
         val linkLayout = bottomSheetView.findViewById<View>(R.id.lnlEnterLink)
@@ -366,7 +417,8 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener, Wif
         successFulLLayout.visibility = View.VISIBLE
         unSuccessLayout.visibility = View.GONE
     }
-    private fun notSuccessUi(){
+
+    private fun notSuccessUi() {
         val settingLayout = bottomSheetView.findViewById<View>(R.id.lnlSetting)
         val loadingLayout = bottomSheetView.findViewById<View>(R.id.lnlGrabbing)
         val linkLayout = bottomSheetView.findViewById<View>(R.id.lnlEnterLink)
