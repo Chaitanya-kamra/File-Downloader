@@ -1,6 +1,10 @@
-package com.chaitanya.filedownloader
+package com.chaitanya.filedownloader.activities
 
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
@@ -13,10 +17,15 @@ import android.widget.EditText
 import android.widget.PopupMenu
 import android.widget.SeekBar
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
+import androidx.core.content.ContextCompat
 import androidx.documentfile.provider.DocumentFile
+import com.chaitanya.filedownloader.R
 import com.chaitanya.filedownloader.databinding.ActivityMainBinding
+import com.chaitanya.filedownloader.utils.DownloadService
+import com.chaitanya.filedownloader.utils.WifiReceiver
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -31,10 +40,11 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.net.URL
 
-class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener {
+class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener, WifiReceiver.WifiConnectivityListener {
     private lateinit var binding: ActivityMainBinding
     private lateinit var bottomSheetDialog : BottomSheetDialog
     private lateinit var bottomSheetView: View
+    private lateinit var wifiReceiver: WifiReceiver
 
     private var maxParallelDownload : Int = 1
 
@@ -63,7 +73,7 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener {
         setContentView(binding.root)
         setSupportActionBar(binding.toolbarMain)
         supportActionBar?.title = ""
-
+        wifiReceiver = WifiReceiver(this@MainActivity)
         binding.menuMore.setOnClickListener { view ->
             showMenu(view)
         }
@@ -75,9 +85,14 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener {
         bottomSheetView.findViewById<EditText>(R.id.etDestination).setOnClickListener {
             openFolderSelection()
         }
+
         bottomSheetView.findViewById<Button>(R.id.addDownloadButton).setOnClickListener {
-            downloadVideo("http://167.99.95.99/c/1.bin")
+            val intent = Intent(this, DownloadService::class.java)
+            intent.putExtra(DownloadService.EXTRA_IMAGE_URL, "http://167.99.95.99/a/10.bin")
+            ContextCompat.startForegroundService(this, intent)
+//            downloadVideo("http://167.99.95.99/c/1.bin")
         }
+
 
         val slider = bottomSheetView.findViewById<SeekBar>(R.id.slider)
         val sliderValue = bottomSheetView.findViewById<TextView>(R.id.sliderValue)
@@ -103,13 +118,8 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener {
         addButton.setOnClickListener{
             fetchUrlDetails("https://ia802607.us.archive.org/27/items/the-kerala-story_202305/BOY%20AND%20THE%20KING%20-%20Abdallah%20Al%20Faisal.jpg")
         }
-//
-//        val updateButton = bottomSheetView.findViewById<Button>(R.id.updateButton)
-//        updateButton.setOnClickListener {
-//            val parallelDownloadCount = slider.progress
-//            // Perform the necessary action to update the parallel download count
-//            // You can add your implementation logic here
-//        }
+
+
         binding.buttonAdd.setOnClickListener {
             linkUi()
             bottomSheetDialog.show()
@@ -250,6 +260,41 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener {
                 }
             })
         }
+    }
+    private fun isInternetAvailable(): Boolean {
+        val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val networkCapabilities = connectivityManager.activeNetwork ?: return false
+            val activeNetwork =
+                connectivityManager.getNetworkCapabilities(networkCapabilities) ?: return false
+            return activeNetwork.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        } else {
+            val networkInfo = connectivityManager.activeNetworkInfo
+            return networkInfo?.isConnectedOrConnecting == true
+        }
+    }
+    override fun onResume() {
+        super.onResume()
+        registerWifiReceiver()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        unregisterWifiReceiver()
+    }
+
+    private fun registerWifiReceiver() {
+        val filter = IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION)
+        registerReceiver(wifiReceiver, filter)
+    }
+
+    private fun unregisterWifiReceiver() {
+        unregisterReceiver(wifiReceiver)
+    }
+
+    override fun onWifiConnected() {
+        Toast.makeText(this@MainActivity,"fsfs",Toast.LENGTH_LONG).show()
+        // Wi-Fi connected, perform the desired functionality here
     }
     private fun settingUi(){
         val settingLayout = bottomSheetView.findViewById<View>(R.id.lnlSetting)

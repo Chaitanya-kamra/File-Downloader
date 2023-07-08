@@ -1,12 +1,13 @@
-package com.chaitanya.filedownloader
+package com.chaitanya.filedownloader.adapters
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.chaitanya.filedownloader.databinding.ItemDownloadBinding
+import com.chaitanya.filedownloader.models.DownloadEntity
 
-class ItemAdapter( private val items: ArrayList<DownloadItem>,
-                   private val updateListener: (id: Int) -> Unit):
+class ItemAdapter(private val items: ArrayList<DownloadEntity>,
+                  private val updateListener: (id: Int) -> Unit):
     RecyclerView.Adapter<ItemAdapter.ViewHolder>() {
     class ViewHolder(binding: ItemDownloadBinding) : RecyclerView.ViewHolder(binding.root) {
 
@@ -31,6 +32,6 @@ class ItemAdapter( private val items: ArrayList<DownloadItem>,
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        TODO("Not yet implemented")
+
     }
 }
