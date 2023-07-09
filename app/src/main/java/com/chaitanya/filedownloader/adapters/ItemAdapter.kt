@@ -1,5 +1,6 @@
 package com.chaitanya.filedownloader.adapters
 
+import android.content.Intent
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
@@ -7,6 +8,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.chaitanya.filedownloader.R
 import com.chaitanya.filedownloader.databinding.ItemDownloadBinding
 import com.chaitanya.filedownloader.models.DownloadEntity
+import com.chaitanya.filedownloader.utils.DownloadService
 
 class ItemAdapter(private val items: ArrayList<DownloadEntity>,
                   private val deleteListener: (id: Int) -> Unit):
@@ -114,6 +116,18 @@ class ItemAdapter(private val items: ArrayList<DownloadEntity>,
             }
         }
 
+        holder.tvTitle.setOnClickListener {
+
+            val intent = Intent(context, DownloadService::class.java)
+
+            intent.putExtra(DownloadService.EXTRA_IMAGE_URL, item.downloadUrl)
+            ContextCompat.startForegroundService(context, intent)
+            holder.ivIcon.setImageDrawable(
+                ContextCompat.getDrawable(
+                    context,
+                    R.drawable.file
+                ))
+        }
 
         holder.ivDelete.setOnClickListener {
             deleteListener(item.downloadId)

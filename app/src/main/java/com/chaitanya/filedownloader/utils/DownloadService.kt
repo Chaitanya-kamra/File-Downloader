@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit
 
 class DownloadService:Service() {
     private val channelId = "download_channel"
-    private val notificationId = 1
+    private var notificationId = 1
     private val notificationTitle = "Downloading Image"
     private val notificationText = "Download in progress"
     private val cancelActionText = "Cancel"
@@ -60,8 +60,8 @@ class DownloadService:Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val downloadUrl = intent?.getStringExtra(EXTRA_IMAGE_URL)
         downloadUrl?.let {
-            startForeground(notificationId, createForegroundNotification())
 
+            startForeground(notificationId, createForegroundNotification())
             downloadFile(it)
         }
         if (intent?.action == ACTION_CANCEL_DOWNLOAD) {
@@ -181,7 +181,7 @@ class DownloadService:Service() {
 
         val uri : Uri = Uri.parse("content://com.android.externalstorage.documents/tree/111B-301B%3ANotifications")
         val documentFile = DocumentFile.fromTreeUri(this, uri)
-        val file = documentFile!!.createFile("text/plain", "okay.bin")
+        val file = documentFile!!.createFile("text/plain", "okafeesy.txt")
         val outputFile = File(filesDir,"okay.bin") // Implement your method to create an output file
         val outputStream = contentResolver.openOutputStream(file!!.uri)
 //        val outputStream = outputFile.outputStream()

@@ -251,10 +251,6 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
             }
         }
 
-                    val intent = Intent(this, DownloadService::class.java)
-
-                    intent.putExtra(DownloadService.EXTRA_IMAGE_URL, enteredLink)
-                    ContextCompat.startForegroundService(this, intent)
     }
     fun getMimeTypeFromExtension(fileExtension: String): String? {
         return MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension.lowercase())
