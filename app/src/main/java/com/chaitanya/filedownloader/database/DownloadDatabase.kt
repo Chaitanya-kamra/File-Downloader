@@ -8,7 +8,7 @@ import com.chaitanya.filedownloader.models.DownloadEntity
 
 @Database(entities = [DownloadEntity::class],version = 1)
 abstract class DownloadDatabase:RoomDatabase() {
-    abstract fun employeeDao(): DownloadDao
+    abstract fun downloadDao(): DownloadDao
 
     companion object {
 

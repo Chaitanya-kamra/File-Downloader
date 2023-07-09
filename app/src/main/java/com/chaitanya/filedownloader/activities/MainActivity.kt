@@ -12,7 +12,9 @@ import android.os.Bundle
 import android.util.Log
 import android.view.MenuItem
 import android.view.View
+import android.webkit.MimeTypeMap
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.PopupMenu
 import android.widget.SeekBar
@@ -22,8 +24,14 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import androidx.documentfile.provider.DocumentFile
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.chaitanya.filedownloader.R
+import com.chaitanya.filedownloader.adapters.ItemAdapter
+import com.chaitanya.filedownloader.database.DownloadApp
+import com.chaitanya.filedownloader.database.DownloadDao
 import com.chaitanya.filedownloader.databinding.ActivityMainBinding
+import com.chaitanya.filedownloader.models.DownloadEntity
 import com.chaitanya.filedownloader.utils.DownloadService
 import com.chaitanya.filedownloader.utils.WifiReceiver
 import com.google.android.material.bottomsheet.BottomSheetDialog
@@ -40,6 +48,9 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.lang.Exception
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
     WifiReceiver.WifiConnectivityListener {
@@ -68,7 +79,6 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
             }
         }
 
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -76,6 +86,15 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
         setSupportActionBar(binding.toolbarMain)
         supportActionBar?.title = ""
         wifiReceiver = WifiReceiver(this@MainActivity)
+        val downloadDao =(application as DownloadApp).db.downloadDao()
+
+        lifecycleScope.launch {
+            downloadDao.fetchAllDownload().collect {
+                Log.d("exactemployee", "$it")
+                val list = ArrayList(it)
+                setupListOfDataIntoRecyclerView(list,downloadDao)
+            }
+        }
         binding.menuMore.setOnClickListener { view ->
             showMenu(view)
         }
@@ -89,12 +108,8 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
         }
 
         bottomSheetView.findViewById<Button>(R.id.addDownloadButton).setOnClickListener {
-            val intent = Intent(this, DownloadService::class.java)
-
-            intent.putExtra(DownloadService.EXTRA_IMAGE_URL, enteredLink)
-            ContextCompat.startForegroundService(this, intent)
+            addDownload(downloadDao)
         }
-
 
         val sliderValue = bottomSheetView.findViewById<TextView>(R.id.sliderValue)
         bottomSheetView.findViewById<SeekBar>(R.id.slider)
@@ -156,11 +171,100 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
         }
     }
 
+    private fun setupListOfDataIntoRecyclerView(list: ArrayList<DownloadEntity>, downloadDao: DownloadDao) {
+        if (list.isNotEmpty()) {
+
+            val itemAdapter = ItemAdapter(list
+            ) { deleteId ->
+                lifecycleScope.launch {
+                    downloadDao.fetchDownloadById(deleteId).collect {
+                        deleteRecord(deleteId, downloadDao, it)
+                    }
+                }
+
+            }
+            binding.rvDownloadMain.layoutManager = LinearLayoutManager(this)
+//            // adapter instance is set to the recyclerview to inflate the items.
+            binding.rvDownloadMain.adapter = itemAdapter
+            binding.rvDownloadMain.visibility = View.VISIBLE
+            binding.lnlCenter.visibility = View.GONE
+        } else {
+            binding.rvDownloadMain.visibility = View.GONE
+            binding.lnlCenter.visibility = View.VISIBLE
+        }
+    }
+
+    private fun deleteRecord(deleteId: Int, downloadDao: DownloadDao, downloadEntity : DownloadEntity) {
+        lifecycleScope.launch {
+            downloadDao.delete(DownloadEntity(deleteId))
+            Toast.makeText(
+                applicationContext,
+                "Record deleted successfully.",
+                Toast.LENGTH_LONG
+            ).show()
+
+        }
+    }
+
+    private fun addDownload(downloadDao: DownloadDao) {
+        val name = bottomSheetView.findViewById<EditText>(R.id.etFileName).text.toString()
+        val destination = bottomSheetView.findViewById<EditText>(R.id.etDestination).text.toString()
+        val extension = bottomSheetView.findViewById<TextView>(R.id.tvExtension).text.toString()
+        val size = bottomSheetView.findViewById<TextView>(R.id.tvSize).text.toString()
+        val needWifi = bottomSheetView.findViewById<CheckBox>(R.id.wifi_checkbox).isChecked
+        val mimeType = getMimeTypeFromExtension(extension)
+        val documentFile = DocumentFile.fromTreeUri(this, selectedFolder!!)
+        val file = documentFile?.createFile(mimeType!!, "$name.$extension")
+        val c = Calendar.getInstance()
+        val dateTime = c.time
+        val sdf = SimpleDateFormat("dd MM yyyy", Locale.getDefault())
+        val date = sdf.format(dateTime)
+        Toast.makeText(this, needWifi.toString(), Toast.LENGTH_SHORT).show()
+        if (name.isEmpty()) {
+            Toast.makeText(this, "Enter Name", Toast.LENGTH_SHORT).show()
+        } else if (destination.isEmpty()) {
+            Toast.makeText(this, "Select Destination", Toast.LENGTH_SHORT).show()
+        } else {
+            lifecycleScope.launch {
+                try {
+                    val downloadEntity = DownloadEntity(
+                        downloadUrl = enteredLink,
+                        fileName = name,
+                        fileType = extension,
+                        fileSize = size,
+                        fileStatus = "Queue",
+                        needWifi = needWifi,
+                        fileUri = file?.uri.toString(),
+                        date = date
+                    )
+                    downloadDao.insert(downloadEntity)
+                    runOnUiThread{
+                        successUi()
+                    }
+                }catch (e:Exception){
+                    runOnUiThread{
+                        notSuccessUi()
+                    }
+                }
+
+
+            }
+        }
+
+                    val intent = Intent(this, DownloadService::class.java)
+
+                    intent.putExtra(DownloadService.EXTRA_IMAGE_URL, enteredLink)
+                    ContextCompat.startForegroundService(this, intent)
+    }
+    fun getMimeTypeFromExtension(fileExtension: String): String? {
+        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension.lowercase())
+    }
+
     private fun fetchUrlDetails(urlString: String) {
         runOnUiThread {
             loadingUi()
         }
-        GlobalScope.launch(Dispatchers.IO) {
+        lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val url = URL(urlString)
                 val connection = url.openConnection()

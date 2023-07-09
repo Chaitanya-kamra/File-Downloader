@@ -7,9 +7,11 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.documentfile.provider.DocumentFile
 import com.chaitanya.filedownloader.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -29,7 +31,7 @@ class DownloadService:Service() {
     private val notificationTitle = "Downloading Image"
     private val notificationText = "Download in progress"
     private val cancelActionText = "Cancel"
-    private val pauseActionText = "Pause"
+    private var pauseActionText = "Pause"
     private val resumeActionText = "Resume"
 
     private lateinit var notificationManager: NotificationManager
@@ -38,7 +40,7 @@ class DownloadService:Service() {
     private lateinit var client: OkHttpClient
     private lateinit var request: Request
     private lateinit var call: Call
-
+    private var startPosition = 0
     private var isPaused = false
     private var totalFileSize = 0L
     private var downloadedSize = 0L
@@ -51,6 +53,7 @@ class DownloadService:Service() {
         client = OkHttpClient.Builder()
             .connectTimeout(60, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
+
             .build()
     }
 
@@ -66,6 +69,22 @@ class DownloadService:Service() {
             stopSelf()
             notificationManager.cancel(notificationId)
         }
+//        if (intent?.action == ACTION_PAUSE_DOWNLOAD) {
+////            pauseActionText = "Resume"
+////            if (!isPaused){
+////                isPaused = true
+//
+////            }else{
+////                isPaused = false
+////                pauseActionText = "pause"
+////                imageUrl?.let {
+////                    startForeground(notificationId, createForegroundNotification())
+////
+////                    downloadImage(it)
+////                }
+////            }
+//
+//        }
         return START_STICKY
     }
 
@@ -103,29 +122,30 @@ class DownloadService:Service() {
             PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 //
-//        val pauseIntent = Intent(this, DownloadService::class.java)
-//        pauseIntent.action = ACTION_PAUSE_DOWNLOAD
-//        val pausePendingIntent = PendingIntent.getService(
-//            this,
-//            0,
-//            pauseIntent,
-//            PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
-//        )
+        val pauseIntent = Intent(this, DownloadService::class.java)
+        pauseIntent.action = ACTION_PAUSE_DOWNLOAD
+        val pausePendingIntent = PendingIntent.getService(
+            this,
+            0,
+            pauseIntent,
+            PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
 //
-//        val resumeIntent = Intent(this, DownloadService::class.java)
-//        resumeIntent.action = ACTION_RESUME_DOWNLOAD
-//        val resumePendingIntent = PendingIntent.getService(
-//            this,
-//            0,
-//            resumeIntent,
-//            PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
-//        )
+        val resumeIntent = Intent(this, DownloadService::class.java)
+        resumeIntent.action = ACTION_RESUME_DOWNLOAD
+        val resumePendingIntent = PendingIntent.getService(
+            this,
+            0,
+            resumeIntent,
+            PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
 
         val notificationBuilder = NotificationCompat.Builder(this, channelId)
             .setContentTitle(notificationTitle)
             .setContentText(notificationText)
             .setProgress(100,0,false)
             .addAction(R.drawable.ic_action_cross, cancelActionText, cancelPendingIntent)
+            .addAction(R.drawable.ic_pause, pauseActionText, pausePendingIntent)
             .setSmallIcon(R.drawable.ic_icon)
             .setOngoing(true)
 
@@ -135,7 +155,8 @@ class DownloadService:Service() {
     }
 
     private fun downloadImage(imageUrl: String) {
-        request = Request.Builder().url(imageUrl).build()
+        val rangeHeaderValue = "bytes=$startPosition-"
+        request = Request.Builder().url(imageUrl).addHeader("Range", rangeHeaderValue).build()
         call = client.newCall(request)
 
         call.enqueue(object : Callback {
@@ -158,9 +179,12 @@ class DownloadService:Service() {
         val bytes = ByteArray(4096)
         val inputStream = responseBody.byteStream()
 
+        val uri : Uri = Uri.parse("content://com.android.externalstorage.documents/tree/111B-301B%3ANotifications")
+        val documentFile = DocumentFile.fromTreeUri(this, uri)
+        val file = documentFile!!.createFile("text/plain", "okay.bin")
         val outputFile = File(filesDir,"okay.bin") // Implement your method to create an output file
-
-        val outputStream = outputFile.outputStream()
+        val outputStream = contentResolver.openOutputStream(file!!.uri)
+//        val outputStream = outputFile.outputStream()
         totalFileSize = responseBody.contentLength()
         var fileSizeDownloaded = 0L
 
@@ -170,17 +194,17 @@ class DownloadService:Service() {
                 break
             }
 
-            outputStream.write(bytes, 0, read)
+            outputStream!!.write(bytes, 0, read)
             fileSizeDownloaded += read.toLong()
             downloadedSize = fileSizeDownloaded
             val progress = ((fileSizeDownloaded * 100) / totalFileSize).toInt()
             updateProgressNotification(progress)
-
+            startPosition = progress
             // Delay to avoid high CPU usage
             Thread.sleep(100)
         }
 
-        outputStream.flush()
+        outputStream!!.flush()
         outputStream.close()
         inputStream.close()
 
