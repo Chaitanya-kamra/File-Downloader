@@ -58,11 +58,11 @@ class DownloadService:Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val imageUrl = intent?.getStringExtra(EXTRA_IMAGE_URL)
-        imageUrl?.let {
+        val downloadUrl = intent?.getStringExtra(EXTRA_IMAGE_URL)
+        downloadUrl?.let {
             startForeground(notificationId, createForegroundNotification())
 
-            downloadImage(it)
+            downloadFile(it)
         }
         if (intent?.action == ACTION_CANCEL_DOWNLOAD) {
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -77,10 +77,10 @@ class DownloadService:Service() {
 ////            }else{
 ////                isPaused = false
 ////                pauseActionText = "pause"
-////                imageUrl?.let {
+////                downloadUrl?.let {
 ////                    startForeground(notificationId, createForegroundNotification())
 ////
-////                    downloadImage(it)
+////                    downloadFile(it)
 ////                }
 ////            }
 //
@@ -154,9 +154,9 @@ class DownloadService:Service() {
         return notificationBuilder.build()
     }
 
-    private fun downloadImage(imageUrl: String) {
+    private fun downloadFile(downloadUrl: String) {
         val rangeHeaderValue = "bytes=$startPosition-"
-        request = Request.Builder().url(imageUrl).addHeader("Range", rangeHeaderValue).build()
+        request = Request.Builder().url(downloadUrl).addHeader("Range", rangeHeaderValue).build()
         call = client.newCall(request)
 
         call.enqueue(object : Callback {
