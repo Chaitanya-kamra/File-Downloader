@@ -27,6 +27,7 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.chaitanya.filedownloader.R
+import com.chaitanya.filedownloader.adapters.DateAdapter
 import com.chaitanya.filedownloader.adapters.ItemAdapter
 import com.chaitanya.filedownloader.database.DownloadApp
 import com.chaitanya.filedownloader.database.DownloadDao
@@ -35,7 +36,6 @@ import com.chaitanya.filedownloader.models.DownloadEntity
 import com.chaitanya.filedownloader.utils.ProgressReceiver
 import com.chaitanya.filedownloader.utils.StatusReciver
 import com.chaitanya.filedownloader.utils.WifiReceiver
-import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -195,9 +195,7 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
 
     private fun setupListOfDataIntoRecyclerView(list: ArrayList<DownloadEntity>, downloadDao: DownloadDao) {
         if (list.isNotEmpty()) {
-            val sortedEntities = list.sortedByDescending { it.date }
-            val groupedEntities = sortedEntities.groupBy { it.date }
-            val itemAdapter = DateAdapter(groupedEntities
+            val itemAdapter = ItemAdapter(list
             ) { deleteId ->
                 lifecycleScope.launch {
                     downloadDao.fetchDownloadById(deleteId).collect {
@@ -211,22 +209,6 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
             binding.rvDownloadMain.adapter = itemAdapter
             binding.rvDownloadMain.visibility = View.VISIBLE
             binding.lnlCenter.visibility = View.GONE
-
-
-//            val itemAdapter = ItemAdapter(list
-//            ) { deleteId ->
-//                lifecycleScope.launch {
-//                    downloadDao.fetchDownloadById(deleteId).collect {
-//                        deleteRecord(deleteId, downloadDao, it)
-//                    }
-//                }
-//
-//            }
-//            binding.rvDownloadMain.layoutManager = LinearLayoutManager(this)
-////            // adapter instance is set to the recyclerview to inflate the items.
-//            binding.rvDownloadMain.adapter = itemAdapter
-//            binding.rvDownloadMain.visibility = View.VISIBLE
-//            binding.lnlCenter.visibility = View.GONE
         } else {
             binding.rvDownloadMain.visibility = View.GONE
             binding.lnlCenter.visibility = View.VISIBLE
@@ -258,7 +240,7 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
         val dateTime = c.time
         val sdf = SimpleDateFormat("dd MM yyyy", Locale.getDefault())
         val date = sdf.format(dateTime)
-        val status = if (wifiAvailable){
+        val status = if (!needWifi){
             "Start"
         }else{
             "WaitWifi"
@@ -294,6 +276,7 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
 
             }
         }
+
 
     }
     private fun getMimeTypeFromExtension(fileExtension: String): String? {

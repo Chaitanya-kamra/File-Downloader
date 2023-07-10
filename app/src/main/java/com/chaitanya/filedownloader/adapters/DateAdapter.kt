@@ -7,10 +7,10 @@ import com.chaitanya.filedownloader.databinding.ItemDateBinding
 import com.chaitanya.filedownloader.models.DownloadEntity
 
 class DateAdapter(
-    private val items: ArrayList<DownloadEntity>,
-private val deleteListener: (id: Int) -> Unit
+    private val groupedEntities: Map<String?, ArrayList<DownloadEntity>>,
+    private val deleteListener: (id: Int) -> Unit
 ) :
-RecyclerView.Adapter<ItemAdapter.ViewHolder>() {
+RecyclerView.Adapter<DateAdapter.ViewHolder>() {
     class ViewHolder(binding: ItemDateBinding) : RecyclerView.ViewHolder(binding.root) {
 
         val tvTitle = binding.tvDate
@@ -18,8 +18,26 @@ RecyclerView.Adapter<ItemAdapter.ViewHolder>() {
 
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ItemAdapter.ViewHolder {
-        return ItemAdapter.ViewHolder(
+
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        val dates = groupedEntities.keys.toList()
+        val currentDate = dates[position]
+        val entities = groupedEntities[currentDate]
+
+        holder.tvTitle.text = currentDate
+
+        // Create an instance of the inner RecyclerView adapter and set it to recyclerViewItems
+        entities?.let {
+            val innerAdapter = ItemAdapter(it,deleteListener)
+            holder.rvCard.adapter = innerAdapter
+        }
+
+
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+        return ViewHolder(
             ItemDateBinding.inflate(
                 LayoutInflater.from(parent.context), parent, false
             )
@@ -27,10 +45,8 @@ RecyclerView.Adapter<ItemAdapter.ViewHolder>() {
     }
 
     override fun getItemCount(): Int {
-        TODO("Not yet implemented")
+        return groupedEntities.size
     }
 
-    override fun onBindViewHolder(holder: ItemAdapter.ViewHolder, position: Int) {
-        TODO("Not yet implemented")
-    }
+
 }
