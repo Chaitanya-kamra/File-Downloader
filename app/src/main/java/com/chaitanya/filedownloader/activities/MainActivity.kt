@@ -22,7 +22,6 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
-import androidx.core.content.ContextCompat
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -32,20 +31,11 @@ import com.chaitanya.filedownloader.database.DownloadApp
 import com.chaitanya.filedownloader.database.DownloadDao
 import com.chaitanya.filedownloader.databinding.ActivityMainBinding
 import com.chaitanya.filedownloader.models.DownloadEntity
-import com.chaitanya.filedownloader.utils.DownloadService
+import com.chaitanya.filedownloader.utils.ProgressReceiver
 import com.chaitanya.filedownloader.utils.WifiReceiver
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
-import okhttp3.Call
-import okhttp3.Callback
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.Response
-import java.io.File
-import java.io.FileOutputStream
-import java.io.IOException
 import java.lang.Exception
 import java.net.URL
 import java.text.SimpleDateFormat
@@ -53,16 +43,19 @@ import java.util.Calendar
 import java.util.Locale
 
 class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
-    WifiReceiver.WifiConnectivityListener {
+    WifiReceiver.WifiConnectivityListener, ProgressReceiver.DownloadProgressListener {
     private lateinit var binding: ActivityMainBinding
     private lateinit var bottomSheetDialog: BottomSheetDialog
     private lateinit var bottomSheetView: View
     private lateinit var wifiReceiver: WifiReceiver
+    private lateinit var progressReceiver: ProgressReceiver
+
 
     private var maxParallelDownload: Int = 1
 
     private var selectedFolder: Uri? = null
     private lateinit var enteredLink: String
+    private lateinit var list : ArrayList<DownloadEntity>
 
     // ActivityResultLauncher for folder selection
     private val folderSelectionLauncher =
@@ -86,12 +79,19 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
         setSupportActionBar(binding.toolbarMain)
         supportActionBar?.title = ""
         wifiReceiver = WifiReceiver(this@MainActivity)
+        progressReceiver = ProgressReceiver(this)
+
+        // Register the receiver with the desired intent filter
+        val intentFilter = IntentFilter("com.chaitanya.filedownloader.DOWNLOAD_PROGRESS")
+        registerReceiver(progressReceiver, intentFilter)
+//        downloadService = DownloadService()
+//        downloadService.setDownloadProgressCallback(this)
         val downloadDao =(application as DownloadApp).db.downloadDao()
 
         lifecycleScope.launch {
             downloadDao.fetchAllDownload().collect {
                 Log.d("exactemployee", "$it")
-                val list = ArrayList(it)
+                list = ArrayList(it)
                 setupListOfDataIntoRecyclerView(list,downloadDao)
             }
         }
@@ -252,9 +252,19 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
         }
 
     }
-    fun getMimeTypeFromExtension(fileExtension: String): String? {
+    private fun getMimeTypeFromExtension(fileExtension: String): String? {
         return MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension.lowercase())
     }
+//    override fun onProgressUpdate(position: Int, progress: Int) {
+//        // Update the progress of the item at the given position in your RecyclerView
+//        runOnUiThread {
+//            Log.e("okay check","$position : $progress")
+//            // Update your RecyclerView item with the progress
+//            // For example, if you have a list of items, you can update the progress of the item at the given position
+//            list[position].progress = progress
+//            binding.rvDownloadMain.adapter?.notifyItemChanged(position)
+//        }
+//    }
 
     private fun fetchUrlDetails(urlString: String) {
         runOnUiThread {
@@ -350,7 +360,22 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
             return networkInfo?.isConnectedOrConnecting == true
         }
     }
+    override fun onProgressUpdate(itemNo: Int, progress: Int) {
+        val downloadDao =(application as DownloadApp).db.downloadDao()
+        lifecycleScope.launch {
+//            downloadDao.update(DownloadEntity(downloadId = itemNo, progress = progress, needWifi = true, fileType = "png"))
+            downloadDao.updateWifi(itemNo,true)
+            downloadDao.updateDownloadProgress(itemNo,progress)
 
+        }
+
+        Log.e("pgd","$itemNo :$progress")
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(progressReceiver)
+    }
     override fun onResume() {
         super.onResume()
         registerWifiReceiver()
@@ -464,5 +489,7 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
         successFulLLayout.visibility = View.GONE
         unSuccessLayout.visibility = View.VISIBLE
     }
+
+
 
 }

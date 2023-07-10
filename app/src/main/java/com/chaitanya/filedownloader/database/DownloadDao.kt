@@ -16,6 +16,7 @@ interface DownloadDao {
     @Update
     suspend fun update(downloadEntity: DownloadEntity)
 
+
     @Delete
     suspend fun delete(downloadEntity: DownloadEntity)
 
@@ -24,4 +25,10 @@ interface DownloadDao {
 
     @Query("Select * from `download-table` where downloadId=:id")
     fun fetchDownloadById(id:Int): Flow<DownloadEntity>
+
+    @Query("UPDATE `download-table` SET progress = :progress WHERE downloadId = :downloadId")
+    suspend fun updateDownloadProgress(downloadId: Int, progress: Int)
+
+    @Query("UPDATE `download-table` SET needWifi = :need WHERE downloadId = :downloadId")
+    suspend fun updateWifi(downloadId: Int, need: Boolean)
 }

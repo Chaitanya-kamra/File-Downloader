@@ -11,25 +11,22 @@ import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import androidx.documentfile.provider.DocumentFile
 import com.chaitanya.filedownloader.R
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import com.chaitanya.filedownloader.models.DownloadEntity
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.ResponseBody
-import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 class DownloadService:Service() {
     private val channelId = "download_channel"
-    private var notificationId = 1
-    private val notificationTitle = "Downloading Image"
-    private val notificationText = "Download in progress"
+
+    private var notificationTitle = "Downloading Image"
+    private var notificationText = "Download in progress"
     private val cancelActionText = "Cancel"
     private var pauseActionText = "Pause"
     private val resumeActionText = "Resume"
@@ -44,6 +41,11 @@ class DownloadService:Service() {
     private var isPaused = false
     private var totalFileSize = 0L
     private var downloadedSize = 0L
+    private lateinit var outputUri :String
+
+
+    // ...
+
 
     override fun onCreate() {
         super.onCreate()
@@ -58,12 +60,21 @@ class DownloadService:Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val downloadUrl = intent?.getStringExtra(EXTRA_IMAGE_URL)
-        downloadUrl?.let {
+        var notificationId = 1
+        val downloadEntity = intent?.getParcelableExtra<DownloadEntity>(EXTRA_DETAILS)
+        outputUri = downloadEntity!!.fileUri.toString()
+        startPosition = downloadEntity.progress
+        notificationId = downloadEntity.downloadId
+        notificationTitle = downloadEntity.fileName.toString()
 
+        downloadEntity?.downloadUrl.let {
             startForeground(notificationId, createForegroundNotification())
-            downloadFile(it)
+            if (it != null) {
+                downloadFile(it,downloadEntity.downloadId)
+            }
         }
+
+
         if (intent?.action == ACTION_CANCEL_DOWNLOAD) {
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
@@ -154,7 +165,7 @@ class DownloadService:Service() {
         return notificationBuilder.build()
     }
 
-    private fun downloadFile(downloadUrl: String) {
+    private fun downloadFile(downloadUrl: String, downloadId: Int) {
         val rangeHeaderValue = "bytes=$startPosition-"
         request = Request.Builder().url(downloadUrl).addHeader("Range", rangeHeaderValue).build()
         call = client.newCall(request)
@@ -167,7 +178,7 @@ class DownloadService:Service() {
 
             override fun onResponse(call: Call, response: Response) {
                 response.body?.let { responseBody ->
-                        saveToFile(responseBody)
+                        saveToFile(responseBody,downloadId)
 
                 }
                 stopSelf() // Stop the service once download is complete
@@ -175,15 +186,15 @@ class DownloadService:Service() {
         })
     }
 
-    private fun saveToFile(responseBody: ResponseBody) {
+    private fun saveToFile(responseBody: ResponseBody, downloadId: Int) {
         val bytes = ByteArray(4096)
         val inputStream = responseBody.byteStream()
-
-        val uri : Uri = Uri.parse("content://com.android.externalstorage.documents/tree/111B-301B%3ANotifications")
-        val documentFile = DocumentFile.fromTreeUri(this, uri)
-        val file = documentFile!!.createFile("text/plain", "okafeesy.txt")
-        val outputFile = File(filesDir,"okay.bin") // Implement your method to create an output file
-        val outputStream = contentResolver.openOutputStream(file!!.uri)
+//
+//        val uri : Uri = Uri.parse("content://com.android.externalstorage.documents/tree/111B-301B%3ANotifications")
+//        val documentFile = DocumentFile.fromTreeUri(this, uri)
+//        val file = documentFile!!.createFile("text/plain", "okafsy.bin")
+//        val outputFile = File(filesDir,"okay.bin") // Implement your method to create an output file
+        val outputStream = contentResolver.openOutputStream(Uri.parse(outputUri))
 //        val outputStream = outputFile.outputStream()
         totalFileSize = responseBody.contentLength()
         var fileSizeDownloaded = 0L
@@ -198,7 +209,8 @@ class DownloadService:Service() {
             fileSizeDownloaded += read.toLong()
             downloadedSize = fileSizeDownloaded
             val progress = ((fileSizeDownloaded * 100) / totalFileSize).toInt()
-            updateProgressNotification(progress)
+            updateProgressNotification(progress,downloadId)
+//            progressCallback?.onProgressUpdate(0,progress)
             startPosition = progress
             // Delay to avoid high CPU usage
             Thread.sleep(100)
@@ -210,17 +222,21 @@ class DownloadService:Service() {
 
         if (!isPaused) {
             // Download completed
-            updateProgressNotification(100)
+            updateProgressNotification(100, downloadId)
             // Perform any additional tasks after download completion
         }
     }
 
-    private fun updateProgressNotification(progress: Int) {
+    private fun updateProgressNotification(progress: Int, downloadId: Int) {
+        val intent = Intent("com.chaitanya.filedownloader.DOWNLOAD_PROGRESS")
+        intent.putExtra("progress", progress)
+        intent.putExtra("item",downloadId)
+        sendBroadcast(intent)
         val notificationBuilder = downloadNotification.setProgress(100,progress,false)
             .setContentText("Downloaded ${getSizeInMB(downloadedSize)}MB / ${getSizeInMB(totalFileSize)}MB")
 
 
-        notificationManager.notify(notificationId, notificationBuilder.build())
+        notificationManager.notify(downloadId, notificationBuilder.build())
     }
 
     private fun getSizeInMB(bytes: Long): String {
@@ -231,6 +247,7 @@ class DownloadService:Service() {
         const val ACTION_CANCEL_DOWNLOAD = "action_cancel_download"
         const val ACTION_PAUSE_DOWNLOAD = "action_pause_download"
         const val ACTION_RESUME_DOWNLOAD = "action_resume_download"
-        const val EXTRA_IMAGE_URL = "extra_image_url"
+        const val EXTRA_DETAILS = "extra_details"
     }
+
 }

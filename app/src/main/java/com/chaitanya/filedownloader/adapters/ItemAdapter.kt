@@ -1,8 +1,11 @@
 package com.chaitanya.filedownloader.adapters
 
 import android.content.Intent
+import android.net.Uri
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import android.webkit.MimeTypeMap
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.chaitanya.filedownloader.R
@@ -116,21 +119,37 @@ class ItemAdapter(private val items: ArrayList<DownloadEntity>,
             }
         }
 
-        holder.tvTitle.setOnClickListener {
+            holder.itemView.setOnClickListener {
+                val mimeType = item.fileType?.let { it1 -> getMimeTypeFromExtension(it1) }
+                val intent = Intent(Intent.ACTION_VIEW)
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                intent.setType(mimeType)
+//                intent.setDataAndType(Uri.parse(item.fileUri), mimeType)
+                context.startActivity(intent)
+            }
+
+//
+        if (!item.needWifi) {
+
 
             val intent = Intent(context, DownloadService::class.java)
 
-            intent.putExtra(DownloadService.EXTRA_IMAGE_URL, item.downloadUrl)
+            intent.putExtra(DownloadService.EXTRA_DETAILS, item)
             ContextCompat.startForegroundService(context, intent)
             holder.ivIcon.setImageDrawable(
                 ContextCompat.getDrawable(
                     context,
                     R.drawable.file
-                ))
+                )
+            )
         }
+
 
         holder.ivDelete.setOnClickListener {
             deleteListener(item.downloadId)
         }
+    }
+    private fun getMimeTypeFromExtension(fileExtension: String): String? {
+        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension.lowercase())
     }
 }
