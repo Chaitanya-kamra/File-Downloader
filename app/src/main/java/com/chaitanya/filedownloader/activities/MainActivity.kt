@@ -22,6 +22,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
+import androidx.core.app.ActivityCompat
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -32,7 +33,9 @@ import com.chaitanya.filedownloader.database.DownloadDao
 import com.chaitanya.filedownloader.databinding.ActivityMainBinding
 import com.chaitanya.filedownloader.models.DownloadEntity
 import com.chaitanya.filedownloader.utils.ProgressReceiver
+import com.chaitanya.filedownloader.utils.StatusReciver
 import com.chaitanya.filedownloader.utils.WifiReceiver
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -43,12 +46,15 @@ import java.util.Calendar
 import java.util.Locale
 
 class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
-    WifiReceiver.WifiConnectivityListener, ProgressReceiver.DownloadProgressListener {
+    WifiReceiver.WifiConnectivityListener, ProgressReceiver.DownloadProgressListener,
+    StatusReciver.StatusListener {
     private lateinit var binding: ActivityMainBinding
     private lateinit var bottomSheetDialog: BottomSheetDialog
     private lateinit var bottomSheetView: View
     private lateinit var wifiReceiver: WifiReceiver
     private lateinit var progressReceiver: ProgressReceiver
+    private var wifiAvailable :Boolean = false
+    private lateinit var statusReceiver: StatusReciver
 
 
     private var maxParallelDownload: Int = 1
@@ -78,14 +84,24 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
         setContentView(binding.root)
         setSupportActionBar(binding.toolbarMain)
         supportActionBar?.title = ""
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ActivityCompat.requestPermissions(this, arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),0)
+        }
+
+
         wifiReceiver = WifiReceiver(this@MainActivity)
         progressReceiver = ProgressReceiver(this)
 
         // Register the receiver with the desired intent filter
         val intentFilter = IntentFilter("com.chaitanya.filedownloader.DOWNLOAD_PROGRESS")
         registerReceiver(progressReceiver, intentFilter)
-//        downloadService = DownloadService()
-//        downloadService.setDownloadProgressCallback(this)
+
+        statusReceiver = StatusReciver(this)
+
+        val intentFilterStatus = IntentFilter("com.chaitanya.filedownloader.Status")
+        registerReceiver(statusReceiver, intentFilterStatus)
+
         val downloadDao =(application as DownloadApp).db.downloadDao()
 
         lifecycleScope.launch {
@@ -103,12 +119,18 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
         bottomSheetDialog.setContentView(bottomSheetView)
 
 
+
         bottomSheetView.findViewById<EditText>(R.id.etDestination).setOnClickListener {
             openFolderSelection()
         }
 
         bottomSheetView.findViewById<Button>(R.id.addDownloadButton).setOnClickListener {
-            addDownload(downloadDao)
+            if (isInternetAvailable()){
+                addDownload(downloadDao)
+            }else{
+                Toast.makeText(this,"No Internet",Toast.LENGTH_SHORT).show()
+            }
+
         }
 
         val sliderValue = bottomSheetView.findViewById<TextView>(R.id.sliderValue)
@@ -173,8 +195,9 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
 
     private fun setupListOfDataIntoRecyclerView(list: ArrayList<DownloadEntity>, downloadDao: DownloadDao) {
         if (list.isNotEmpty()) {
-
-            val itemAdapter = ItemAdapter(list
+            val sortedEntities = list.sortedByDescending { it.date }
+            val groupedEntities = sortedEntities.groupBy { it.date }
+            val itemAdapter = DateAdapter(groupedEntities
             ) { deleteId ->
                 lifecycleScope.launch {
                     downloadDao.fetchDownloadById(deleteId).collect {
@@ -188,6 +211,22 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
             binding.rvDownloadMain.adapter = itemAdapter
             binding.rvDownloadMain.visibility = View.VISIBLE
             binding.lnlCenter.visibility = View.GONE
+
+
+//            val itemAdapter = ItemAdapter(list
+//            ) { deleteId ->
+//                lifecycleScope.launch {
+//                    downloadDao.fetchDownloadById(deleteId).collect {
+//                        deleteRecord(deleteId, downloadDao, it)
+//                    }
+//                }
+//
+//            }
+//            binding.rvDownloadMain.layoutManager = LinearLayoutManager(this)
+////            // adapter instance is set to the recyclerview to inflate the items.
+//            binding.rvDownloadMain.adapter = itemAdapter
+//            binding.rvDownloadMain.visibility = View.VISIBLE
+//            binding.lnlCenter.visibility = View.GONE
         } else {
             binding.rvDownloadMain.visibility = View.GONE
             binding.lnlCenter.visibility = View.VISIBLE
@@ -219,6 +258,11 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
         val dateTime = c.time
         val sdf = SimpleDateFormat("dd MM yyyy", Locale.getDefault())
         val date = sdf.format(dateTime)
+        val status = if (wifiAvailable){
+            "Start"
+        }else{
+            "WaitWifi"
+        }
         Toast.makeText(this, needWifi.toString(), Toast.LENGTH_SHORT).show()
         if (name.isEmpty()) {
             Toast.makeText(this, "Enter Name", Toast.LENGTH_SHORT).show()
@@ -232,7 +276,7 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
                         fileName = name,
                         fileType = extension,
                         fileSize = size,
-                        fileStatus = "Queue",
+                        fileStatus = status,
                         needWifi = needWifi,
                         fileUri = file?.uri.toString(),
                         date = date
@@ -255,16 +299,6 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
     private fun getMimeTypeFromExtension(fileExtension: String): String? {
         return MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension.lowercase())
     }
-//    override fun onProgressUpdate(position: Int, progress: Int) {
-//        // Update the progress of the item at the given position in your RecyclerView
-//        runOnUiThread {
-//            Log.e("okay check","$position : $progress")
-//            // Update your RecyclerView item with the progress
-//            // For example, if you have a list of items, you can update the progress of the item at the given position
-//            list[position].progress = progress
-//            binding.rvDownloadMain.adapter?.notifyItemChanged(position)
-//        }
-//    }
 
     private fun fetchUrlDetails(urlString: String) {
         runOnUiThread {
@@ -363,8 +397,7 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
     override fun onProgressUpdate(itemNo: Int, progress: Int) {
         val downloadDao =(application as DownloadApp).db.downloadDao()
         lifecycleScope.launch {
-//            downloadDao.update(DownloadEntity(downloadId = itemNo, progress = progress, needWifi = true, fileType = "png"))
-            downloadDao.updateWifi(itemNo,true)
+
             downloadDao.updateDownloadProgress(itemNo,progress)
 
         }
@@ -395,9 +428,26 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
         unregisterReceiver(wifiReceiver)
     }
 
-    override fun onWifiConnected() {
-        Toast.makeText(this@MainActivity, "fsfs", Toast.LENGTH_LONG).show()
-        // Wi-Fi connected, perform the desired functionality here
+    override fun onWifiConnected(b: Boolean) {
+        val downloadDao =(application as DownloadApp).db.downloadDao()
+        wifiAvailable = b
+        if (!b){
+            lifecycleScope.launch {
+                downloadDao.updateWifiStatus(true,"WaitWifi")
+
+            }
+        }else{
+            lifecycleScope.launch {
+                downloadDao.updateWifiStatus(true,"Running")
+
+            }
+        }
+    }
+    override fun onStatusComplete(itemNo: Int, status: String) {
+        val downloadDao =(application as DownloadApp).db.downloadDao()
+        lifecycleScope.launch {
+                downloadDao.updateComplete(itemNo, status)
+        }
     }
 
     private fun settingUi() {
@@ -489,6 +539,7 @@ class MainActivity : AppCompatActivity(), PopupMenu.OnMenuItemClickListener,
         successFulLLayout.visibility = View.GONE
         unSuccessLayout.visibility = View.VISIBLE
     }
+
 
 
 

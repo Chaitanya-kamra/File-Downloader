@@ -20,7 +20,9 @@ class WifiReceiver(private val listener: MainActivity) : BroadcastReceiver() {
 
             // Check if connected network is Wi-Fi
             if (networkInfo != null && networkInfo.isConnected && isWifiConnected(connectivityManager)) {
-                listener.onWifiConnected()
+                listener.onWifiConnected(true)
+            }else{
+                listener.onWifiConnected(false)
             }
         }
     }
@@ -37,6 +39,6 @@ class WifiReceiver(private val listener: MainActivity) : BroadcastReceiver() {
     }
 
     interface WifiConnectivityListener {
-        fun onWifiConnected()
+        fun onWifiConnected(b: Boolean)
     }
 }

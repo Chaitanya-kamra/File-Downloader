@@ -49,6 +49,7 @@ class DownloadService:Service() {
 
     override fun onCreate() {
         super.onCreate()
+
         notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         createNotificationChannel()
 
@@ -72,6 +73,10 @@ class DownloadService:Service() {
             if (it != null) {
                 downloadFile(it,downloadEntity.downloadId)
             }
+            val intent = Intent("com.chaitanya.filedownloader.Status")
+            intent.putExtra("status", "Running")
+            intent.putExtra("item",downloadEntity.downloadId)
+            sendBroadcast(intent)
         }
 
 
@@ -80,22 +85,17 @@ class DownloadService:Service() {
             stopSelf()
             notificationManager.cancel(notificationId)
         }
-//        if (intent?.action == ACTION_PAUSE_DOWNLOAD) {
-////            pauseActionText = "Resume"
-////            if (!isPaused){
-////                isPaused = true
-//
-////            }else{
-////                isPaused = false
-////                pauseActionText = "pause"
-////                downloadUrl?.let {
-////                    startForeground(notificationId, createForegroundNotification())
-////
-////                    downloadFile(it)
-////                }
-////            }
-//
-//        }
+        if (intent?.action == ACTION_PAUSE_DOWNLOAD) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            notificationManager.cancel(notificationId)
+        }
+        if (intent?.action == ACTION_RESUME_DOWNLOAD) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            notificationManager.cancel(notificationId)
+        }
+
         return START_STICKY
     }
 
@@ -189,13 +189,10 @@ class DownloadService:Service() {
     private fun saveToFile(responseBody: ResponseBody, downloadId: Int) {
         val bytes = ByteArray(4096)
         val inputStream = responseBody.byteStream()
-//
-//        val uri : Uri = Uri.parse("content://com.android.externalstorage.documents/tree/111B-301B%3ANotifications")
-//        val documentFile = DocumentFile.fromTreeUri(this, uri)
-//        val file = documentFile!!.createFile("text/plain", "okafsy.bin")
-//        val outputFile = File(filesDir,"okay.bin") // Implement your method to create an output file
+
         val outputStream = contentResolver.openOutputStream(Uri.parse(outputUri))
-//        val outputStream = outputFile.outputStream()
+
+
         totalFileSize = responseBody.contentLength()
         var fileSizeDownloaded = 0L
 
@@ -210,10 +207,8 @@ class DownloadService:Service() {
             downloadedSize = fileSizeDownloaded
             val progress = ((fileSizeDownloaded * 100) / totalFileSize).toInt()
             updateProgressNotification(progress,downloadId)
-//            progressCallback?.onProgressUpdate(0,progress)
             startPosition = progress
-            // Delay to avoid high CPU usage
-            Thread.sleep(100)
+
         }
 
         outputStream!!.flush()
@@ -221,9 +216,11 @@ class DownloadService:Service() {
         inputStream.close()
 
         if (!isPaused) {
-            // Download completed
             updateProgressNotification(100, downloadId)
-            // Perform any additional tasks after download completion
+            val intent = Intent("com.chaitanya.filedownloader.Status")
+            intent.putExtra("status", "Completed")
+            intent.putExtra("item",downloadId)
+            sendBroadcast(intent)
         }
     }
 

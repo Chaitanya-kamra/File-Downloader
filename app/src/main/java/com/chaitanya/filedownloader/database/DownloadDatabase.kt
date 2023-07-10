@@ -6,7 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.chaitanya.filedownloader.models.DownloadEntity
 
-@Database(entities = [DownloadEntity::class],version = 2)
+@Database(entities = [DownloadEntity::class],version = 3)
 abstract class DownloadDatabase:RoomDatabase() {
     abstract fun downloadDao(): DownloadDao
 

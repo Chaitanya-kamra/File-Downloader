@@ -15,7 +15,6 @@ data class DownloadEntity(
     val fileSize: String? = "",
     val fileStatus: String? = "",
     val needWifi:Boolean = false,
-    val isCompleted: Boolean = false,
     var progress: Int = 0,
     val isPaused: Boolean = false,
     val date: String? = "",
@@ -28,7 +27,6 @@ data class DownloadEntity(
         parcel.readString(),
         parcel.readString(),
         parcel.readString(),
-        parcel.readByte() != 0.toByte(),
         parcel.readByte() != 0.toByte(),
         parcel.readInt(),
         parcel.readByte() != 0.toByte(),
@@ -45,7 +43,6 @@ data class DownloadEntity(
         parcel.writeString(fileSize)
         parcel.writeString(fileStatus)
         parcel.writeByte(if (needWifi) 1 else 0)
-        parcel.writeByte(if (isCompleted) 1 else 0)
         parcel.writeInt(progress)
         parcel.writeByte(if (isPaused) 1 else 0)
         parcel.writeString(date)

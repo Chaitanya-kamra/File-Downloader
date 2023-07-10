@@ -29,6 +29,13 @@ interface DownloadDao {
     @Query("UPDATE `download-table` SET progress = :progress WHERE downloadId = :downloadId")
     suspend fun updateDownloadProgress(downloadId: Int, progress: Int)
 
-    @Query("UPDATE `download-table` SET needWifi = :need WHERE downloadId = :downloadId")
-    suspend fun updateWifi(downloadId: Int, need: Boolean)
+    @Query("UPDATE `download-table` SET needWifi = :need ")
+    suspend fun updateWifi(need: Boolean)
+    @Query("UPDATE `download-table` SET fileStatus = :statusC WHERE downloadId = :downloadId")
+    suspend fun updateComplete(downloadId: Int, statusC: String)
+
+    @Query("UPDATE `download-table` SET fileStatus = :statusC WHERE needWifi = :need")
+    suspend fun updateWifiStatus(need: Boolean, statusC: String)
+
+
 }

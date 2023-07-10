@@ -1,20 +1,29 @@
 package com.chaitanya.filedownloader.adapters
 
 import android.content.Intent
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.net.Uri
 import android.util.Log
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import android.webkit.MimeTypeMap
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.chaitanya.filedownloader.R
 import com.chaitanya.filedownloader.databinding.ItemDownloadBinding
 import com.chaitanya.filedownloader.models.DownloadEntity
 import com.chaitanya.filedownloader.utils.DownloadService
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import java.lang.Exception
 
-class ItemAdapter(private val items: ArrayList<DownloadEntity>,
-                  private val deleteListener: (id: Int) -> Unit):
+class ItemAdapter(
+    private val items: ArrayList<DownloadEntity>,
+    private val deleteListener: (id: Int) -> Unit
+) :
     RecyclerView.Adapter<ItemAdapter.ViewHolder>() {
     class ViewHolder(binding: ItemDownloadBinding) : RecyclerView.ViewHolder(binding.root) {
 
@@ -42,45 +51,97 @@ class ItemAdapter(private val items: ArrayList<DownloadEntity>,
         val context = holder.itemView.context
         val item = items[position]
         val title = "${item.fileName}.${item.fileType}"
+
         holder.tvTitle.text = title
-        holder.tvProgress.text = "${item.progress}%"
-        holder.progressBar.progress = item.progress
-        if (!item.isCompleted) {
-            holder.ivIcon.setImageDrawable(
-                ContextCompat.getDrawable(
-                    context,
-                    R.drawable.pause
-                )
-            )
-            holder.tvStatus.text = "0 / ${item.fileSize}"
-            if (item.fileStatus == "Queue") {
-                holder.ivIcon.setImageDrawable(
-                    ContextCompat.getDrawable(
-                        context,
-                        R.drawable.queue
+
+        if (item.fileStatus != "Completed") {
+            if (item.fileStatus == "WaitWifi") {
+                holder.tvProgress.visibility = View.VISIBLE
+                holder.tvProgress.text = "${item.progress}%"
+                holder.progressBar.progress = item.progress
+                holder.tvStatus.text = "Waiting for WiFi"
+                holder.ivIcon.setImageDrawable(ContextCompat.getDrawable(context, R.drawable.queue))
+                holder.progressBar.progressTintList =
+                    ColorStateList.valueOf(Color.parseColor("#FBC441"))
+                if (item.isPaused) {
+                    //TODO
+                } else {
+
+                }
+            } else {
+                if (item.fileStatus == "Queue") {
+
+                    holder.tvProgress.visibility = View.INVISIBLE
+                    holder.progressBar.progress = item.progress
+                    holder.tvStatus.text = "Waiting  in queue"
+                    holder.ivIcon.setImageDrawable(
+                        ContextCompat.getDrawable(
+                            context,
+                            R.drawable.queue
+                        )
                     )
-                )
-                holder.tvStatus.text = "Waiting  in queue"
-            } else if (item.fileStatus == "Failed") {
-                holder.ivIcon.setImageDrawable(
-                    ContextCompat.getDrawable(
-                        context,
-                        R.drawable.error
-                    )
-                )
-                holder.tvStatus.text = "Failed to download"
-            } else if (item.isPaused) {
-                holder.ivIcon.setImageDrawable(
-                    ContextCompat.getDrawable(
-                        context,
-                        R.drawable.resume
-                    )
-                )
-                holder.tvStatus.text = "Download paused"
+                } else {
+                    if (item.fileStatus == "Running") {
+                        val numberPattern = "\\d+".toRegex()
+
+                        val matchResult = numberPattern.find(item.fileSize.toString())
+                        val number = matchResult?.value?.toIntOrNull()
+                        val progressI = (number!!*(item.progress.toDouble()/100)).toInt()
+                        val unit = item.fileSize!!.substringAfter(matchResult?.value ?: "")
+
+                        holder.tvProgress.visibility = View.VISIBLE
+                        holder.progressBar.progress = item.progress
+                        holder.tvProgress.text = "${item.progress}%"
+                        holder.tvStatus.text = "$progressI$unit/${item.fileSize}"
+                        holder.ivIcon.setImageDrawable(
+                            ContextCompat.getDrawable(
+                                context,
+                                R.drawable.pause
+                            )
+                        )
+                        holder.itemView.setOnClickListener {
+                            GlobalScope.launch {
+                                val intent = Intent(context, DownloadService::class.java)
+
+                                intent.putExtra(DownloadService.ACTION_PAUSE_DOWNLOAD, item)
+                                ContextCompat.startForegroundService(context, intent)
+                            }
+                        }
+                    }else{
+                    if (item.isPaused) {
+                        holder.itemView.setOnClickListener {
+                            GlobalScope.launch {
+                                val intent = Intent(context, DownloadService::class.java)
+
+                                intent.putExtra(DownloadService.ACTION_RESUME_DOWNLOAD, item)
+                                ContextCompat.startForegroundService(context, intent)
+                            }
+                        }
+
+                    } else {
+                        GlobalScope.launch {
+                            val intent = Intent(context, DownloadService::class.java)
+
+                            intent.putExtra(DownloadService.EXTRA_DETAILS, item)
+                            ContextCompat.startForegroundService(context, intent)
+                        }
+                        holder.itemView.setOnClickListener {
+                            GlobalScope.launch {
+                                val intent = Intent(context, DownloadService::class.java)
+
+                                intent.putExtra(DownloadService.ACTION_PAUSE_DOWNLOAD, item)
+                                ContextCompat.startForegroundService(context, intent)
+                            }
+                        }
+                    }
+                }
+                }
             }
-        }
-    else{
+        } else {
+
             holder.tvStatus.text = "${item.fileSize} * ${item.downloadUrl}"
+            holder.progressBar.visibility = View.GONE
+            holder.tvProgress.visibility = View.GONE
             when (item.fileType) {
                 "mp3" -> holder.ivIcon.setImageDrawable(
                     ContextCompat.getDrawable(
@@ -117,38 +178,30 @@ class ItemAdapter(private val items: ArrayList<DownloadEntity>,
                     )
                 )
             }
-        }
-
             holder.itemView.setOnClickListener {
-                val mimeType = item.fileType?.let { it1 -> getMimeTypeFromExtension(it1) }
-                val intent = Intent(Intent.ACTION_VIEW)
-                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                intent.setType(mimeType)
+                try {
+
+                    val mimeType = item.fileType?.let { it1 -> getMimeTypeFromExtension(it1) }
+                    val intent = Intent(Intent.ACTION_VIEW)
+                    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    intent.setType(mimeType)
 //                intent.setDataAndType(Uri.parse(item.fileUri), mimeType)
-                context.startActivity(intent)
+                    context.startActivity(intent)
+
+                } catch (e: Exception) {
+                    Toast.makeText(context, "No app to open", Toast.LENGTH_SHORT).show()
+                }
             }
 
-//
-        if (!item.needWifi) {
-
-
-            val intent = Intent(context, DownloadService::class.java)
-
-            intent.putExtra(DownloadService.EXTRA_DETAILS, item)
-            ContextCompat.startForegroundService(context, intent)
-            holder.ivIcon.setImageDrawable(
-                ContextCompat.getDrawable(
-                    context,
-                    R.drawable.file
-                )
-            )
         }
 
 
         holder.ivDelete.setOnClickListener {
             deleteListener(item.downloadId)
         }
+
     }
+
     private fun getMimeTypeFromExtension(fileExtension: String): String? {
         return MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension.lowercase())
     }
